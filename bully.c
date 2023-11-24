@@ -1,94 +1,61 @@
 #include <stdio.h>
-#include <stdlib.h>
 #include <pthread.h>
 #include <unistd.h>
 
-typedef struct
-{
-    int id;
-    int is_leader;
-    pthread_t thread_id;
-} Process;
+#define NUM_PROCESSES 3
 
-Process *processes;
-int num_processes;
+int logicalClocks[NUM_PROCESSES];
+pthread_mutex_t clockMutex = PTHREAD_MUTEX_INITIALIZER;
 
-void *process_function(void *arg)
-{
-    Process *process = (Process *)arg;
+void updateLogicalClock(int processId, int eventTime) {
+    pthread_mutex_lock(&clockMutex);
+    if (eventTime > logicalClocks[processId]) {
+        logicalClocks[processId] = eventTime;
+    }
+    pthread_mutex_unlock(&clockMutex);
+}
 
-    while (1)
-    {
-        // Simulate some work in the process
-        sleep(2);
+void* processFunction(void* arg) {
+    int processId = *((int*)arg);
 
-        // Check if the process is the current leader
-        if (process->is_leader)
-        {
-            printf("Process %d is the leader.\n", process->id);
+    for (int i = 1; i <= 5; ++i) {
+        // Simulate some local processing
+        sleep(1);
+
+        // Event occurs, update logical clock
+        updateLogicalClock(processId, logicalClocks[processId] + 1);
+
+        // Print event details
+        printf("Process %d: Event %d at logical time %d\n", processId + 1, i, logicalClocks[processId]);
+        
+        // Simulate message exchange between processes
+        if (processId == 0) {
+            sleep(1);
+            updateLogicalClock(1, logicalClocks[0] + 1);
+            printf("Process 1: Sends message to Process 2 at logical time %d\n", logicalClocks[0]);
+        } else if (processId == 1) {
+            sleep(1);
+            updateLogicalClock(2, logicalClocks[1] + 1);
+            printf("Process 2: Sends message to Process 3 at logical time %d\n", logicalClocks[1]);
         }
     }
 
     return NULL;
 }
 
-void initiate_election(int failed_process_id)
-{
-    printf("Process %d initiates the election.\n", failed_process_id);
+int main() {
+    pthread_t threads[NUM_PROCESSES];
+    int processIds[NUM_PROCESSES];
 
-    int highest_id = -1;
-    int new_leader_id = -1;
-
-    for (int i = 0; i < num_processes; ++i)
-    {
-        if (processes[i].id > highest_id && processes[i].id > failed_process_id)
-        {
-            highest_id = processes[i].id;
-            new_leader_id = i;
-        }
+    for (int i = 0; i < NUM_PROCESSES; ++i) {
+        logicalClocks[i] = 0;
+        processIds[i] = i;
+        pthread_create(&threads[i], NULL, processFunction, (void*)&processIds[i]);
     }
 
-    if (new_leader_id != -1)
-    {
-        processes[new_leader_id].is_leader = 1;
-        printf("Process %d is the new leader.\n", processes[new_leader_id].id);
+    for (int i = 0; i < NUM_PROCESSES; ++i) {
+        pthread_join(threads[i], NULL);
     }
-}
-
-int main()
-{
-    printf("Enter the number of processes: ");
-    scanf("%d", &num_processes);
-
-    processes = (Process *)malloc(num_processes * sizeof(Process));
-
-    // Initialize processes
-    for (int i = 0; i < num_processes; ++i)
-    {
-        processes[i].id = i;
-        processes[i].is_leader = 0;
-        pthread_create(&processes[i].thread_id, NULL, process_function, (void *)&processes[i]);
-    }
-
-    // Simulate a process failure (e.g., process 3 fails)
-    int failed_process_id;
-    printf("Enter the ID of the failed process: ");
-    scanf("%d", &failed_process_id);
-
-    if (failed_process_id >= 0 && failed_process_id < num_processes)
-    {
-        // Initiate election when a process fails
-        initiate_election(failed_process_id);
-
-        // Let the remaining processes continue their work
-        sleep(10);
-    }
-    else
-    {
-        printf("Invalid process ID.\n");
-    }
-
-    free(processes);
 
     return 0;
 }
