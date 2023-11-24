@@ -2,11 +2,11 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
-#include <winsock2.h>
+#include <sys/socket.h>
 #include <sys/types.h>
-#include <ws2tcpip.h>
-
-#include <ws2spi.h>
+#include <netinet/in.h>
+#include <netdb.h>
+#include <arpa/inet.h>
 
 int main()
 {
@@ -69,3 +69,4 @@ int main()
 
     return 0;
 }
+
